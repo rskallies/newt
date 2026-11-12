@@ -1,0 +1,54 @@
+name: Fork Image
+
+# Builds the fork's linux/amd64 image and pushes it to ghcr.io/<owner>/newt.
+# Lives only on the fork's deploy branch, not part of any upstream pull request.
+
+permissions:
+  contents: read
+  packages: write
+
+on:
+  push:
+    branches:
+      - deploy/icmp-fix
+  workflow_dispatch:
+
+env:
+  IMAGE_VERSION: 1.20.0-icmpfix
+
+jobs:
+  image:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+
+      - name: Run Go tests
+        run: make test
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      - name: Log in to GHCR
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push image
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          platforms: linux/amd64
+          push: true
+          build-args: |
+            VERSION=${{ env.IMAGE_VERSION }}
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/newt:${{ env.IMAGE_VERSION }}
+            ghcr.io/${{ github.repository_owner }}/newt:${{ env.IMAGE_VERSION }}-${{ github.sha }}
